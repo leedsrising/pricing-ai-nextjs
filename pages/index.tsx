@@ -1,60 +1,52 @@
+import prisma from '../lib/prisma';
 import React from "react"
 import { GetStaticProps } from "next"
 import Layout from "../components/Layout"
-import Post, { PostProps } from "../components/Post"
+
+export type SearchProps = {
+  id: string
+  searchString: string
+}
 
 export const getStaticProps: GetStaticProps = async () => {
-  const feed = [
-    {
-      id: "1",
-      title: "Prisma is the perfect ORM for Next.js",
-      content: "[Prisma](https://github.com/prisma/prisma) and Next.js go _great_ together!",
-      published: false,
-      author: {
-        name: "Nikolas Burk",
-        email: "burk@prisma.io",
-      },
-    },
-  ]
-  return { 
-    props: { feed }, 
-    revalidate: 10 
-  }
-}
+  const searches = await prisma.search.findMany();
+  return {
+    props: { searches },
+    revalidate: 10,
+  };
+};
 
 type Props = {
-  feed: PostProps[]
+  searches: SearchProps[]
 }
 
-const Blog: React.FC<Props> = (props) => {
+const SearchList: React.FC<Props> = (props) => {
   return (
     <Layout>
       <div className="page">
-        <h1>Public Feed</h1>
+        <h1>Search History</h1>
         <main>
-          {props.feed.map((post) => (
-            <div key={post.id} className="post">
-              <Post post={post} />
+          {props.searches.map((search) => (
+            <div key={search.id} className="search-item">
+              <p>{search.searchString}</p>
             </div>
           ))}
         </main>
       </div>
       <style jsx>{`
-        .post {
+        .search-item {
           background: white;
           transition: box-shadow 0.1s ease-in;
+          padding: 1rem;
+          margin-bottom: 1rem;
         }
 
-        .post:hover {
+        .search-item:hover {
           box-shadow: 1px 1px 3px #aaa;
-        }
-
-        .post + .post {
-          margin-top: 2rem;
         }
       `}</style>
     </Layout>
   )
 }
 
-export default Blog
+export default SearchList
