@@ -2,6 +2,16 @@ import prisma from '../lib/prisma';
 import React from "react"
 import { GetStaticProps } from "next"
 import Layout from "../components/Layout"
+import PricingExtractor from '../components/PricingExtractor'
+
+export default function Home() {
+  return (
+    <div>
+      <h1>Pricing AI</h1>
+      <PricingExtractor />
+    </div>
+  )
+}
 
 export type SearchProps = {
   id: string
@@ -49,4 +59,4 @@ const SearchList: React.FC<Props> = (props) => {
   )
 }
 
-export default SearchList
+export { SearchList }
