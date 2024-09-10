@@ -41,27 +41,30 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method === 'POST') {
-    try {
-      const { url } = req.body;
-      if (!url) {
-        return res.status(400).json({ error: 'Input is required' });
-      }
-      
-      const pricingUrl = await findPricingPage(url);
-      if (!pricingUrl) {
-        return res.status(404).json({ error: 'Pricing page not found' });
-      }
-      
-      const pricingData = await extractPricingData(pricingUrl);
-      res.status(200).json({ pricingUrl, pricingData });
-    } catch (error) {
-      console.error('Error in getPricing:', error);
-      res.status(500).json({ error: 'Error processing the input', details: error.message });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
     }
-  } else {
-    res.setHeader('Allow', ['POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+
+    console.log('GOOGLE_API_KEY set:', !!GOOGLE_API_KEY);
+    console.log('GOOGLE_CX set:', !!GOOGLE_CX);
+    console.log('OPENAI_API_KEY set:', !!OPENAI_API_KEY);
+
+    const pricingUrl = await findPricingPage(url);
+    if (!pricingUrl) {
+      return res.status(404).json({ error: 'Pricing page not found' });
+    }
+
+    const pricingData = await extractPricingData(pricingUrl);
+    res.status(200).json({ pricingUrl, pricingData });
+  } catch (error) {
+    console.error('Error in getPricing:', error);
+    res.status(500).json({ error: 'Error processing the request', details: error.message });
   }
 }
 

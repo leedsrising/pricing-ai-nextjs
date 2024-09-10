@@ -20,7 +20,7 @@ export default function PricingExtractor() {
       setPricingData(response.data.pricingData)
     } catch (err) {
       console.error('Error fetching pricing data:', err)
-      setError('Error fetching pricing data: ' + (err.response?.data?.error || err.message))
+      setError(`Error fetching pricing data: ${err.response?.data?.error || err.message}`)
     } finally {
       setLoading(false)
     }
