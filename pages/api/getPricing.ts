@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 import puppeteer from 'puppeteer';
-import { OpenAI } from 'openai';
+import OpenAI from 'openai';
 
 // Make sure to set these environment variables in your .env.local file
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
