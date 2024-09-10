@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 import OpenAI from 'openai';
 import chromium from 'chrome-aws-lambda';
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 
 // Make sure to set these environment variables in your .env.local file
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
@@ -57,27 +57,19 @@ async function findPricingPage(baseUrl: string): Promise<string> {
 async function extractPricingData(url: string): Promise<any> {
   let browser;
   try {
-    console.log('Extracting pricing info from:', url);
-    
-    const options = process.env.AWS_LAMBDA_FUNCTION_VERSION
-      ? {
-          args: chromium.args,
-          defaultViewport: chromium.defaultViewport,
-          executablePath: await chromium.executablePath,
-          headless: chromium.headless,
-          ignoreHTTPSErrors: true,
-        }
-      : {
-          args: [],
-          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-          headless: true,
-          ignoreHTTPSErrors: true,
-        };
-
-    browser = await puppeteer.launch(options);
+    if (process.env.NODE_ENV === 'production') {
+      browser = await chromium.puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath,
+        headless: chromium.headless,
+      });
+    } else {
+      // Use local Puppeteer in development
+      browser = await puppeteer.launch();
+    }
 
     const page = await browser.newPage();
-    
     await page.goto(url, { waitUntil: 'networkidle0' });
     
     const screenshot = await page.screenshot({ encoding: 'base64' });
