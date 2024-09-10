@@ -7,7 +7,7 @@ module.exports = {
       GOOGLE_CX: process.env.GOOGLE_CX,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     },
-    webpack: (config, { isServer }) => {
+    webpack: (config, { isServer, webpack }) => {
       if (!isServer) {
         config.resolve.fallback = {
           ...config.resolve.fallback,
@@ -16,6 +16,11 @@ module.exports = {
           tls: false,
         };
       }
+      config.plugins.push(
+        new webpack.IgnorePlugin({
+          resourceRegExp: /^(https?|http2|fs)$/,
+        })
+      );
       return config;
     },
   }

@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
-import puppeteer from 'puppeteer';
 import OpenAI from 'openai';
+import chromium from 'chrome-aws-lambda';
+import puppeteer from 'puppeteer-core';
 
 // Make sure to set these environment variables in your .env.local file
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
@@ -9,33 +10,6 @@ const GOOGLE_CX = process.env.GOOGLE_CX;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-
-async function findPricingPage(url: string): Promise<string | null> {
-  try {
-    console.log(`Searching for pricing page for domain: ${url}`);
-    const searchResponse = await axios.get('https://www.googleapis.com/customsearch/v1', {
-      params: {
-        key: GOOGLE_API_KEY,
-        cx: GOOGLE_CX,
-        q: `${url} pricing`,
-      }
-    });
-
-    console.log('Google API response:', JSON.stringify(searchResponse.data, null, 2));
-
-    if (searchResponse.data.items && searchResponse.data.items.length > 0) {
-      const pricingUrl = searchResponse.data.items[0].link;
-      console.log(`Found pricing URL: ${pricingUrl}`);
-      return pricingUrl;
-    } else {
-      console.log('No pricing page found');
-      return null;
-    }
-  } catch (error) {
-    console.error('Error using Google Custom Search API:', error);
-    throw new Error('Error finding pricing page');
-  }
-}
 
 export default async function handler(
   req: NextApiRequest,
@@ -51,38 +25,62 @@ export default async function handler(
       return res.status(400).json({ error: 'URL is required' });
     }
 
-    console.log('GOOGLE_API_KEY set:', !!GOOGLE_API_KEY);
-    console.log('GOOGLE_CX set:', !!GOOGLE_CX);
-    console.log('OPENAI_API_KEY set:', !!OPENAI_API_KEY);
-
     const pricingUrl = await findPricingPage(url);
-    if (!pricingUrl) {
-      return res.status(404).json({ error: 'Pricing page not found' });
-    }
-
+    console.log('Found pricing URL:', pricingUrl);
+    
     const pricingData = await extractPricingData(pricingUrl);
-    res.status(200).json({ pricingUrl, pricingData });
+    res.status(200).json({ pricingData });
   } catch (error) {
     console.error('Error in getPricing:', error);
     res.status(500).json({ error: 'Error processing the request', details: error.message });
   }
 }
 
+async function findPricingPage(baseUrl: string): Promise<string> {
+  const query = `${baseUrl} pricing`;
+  const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${encodeURIComponent(query)}`;
+
+  try {
+    const response = await axios.get(searchUrl);
+    const items = response.data.items;
+    if (items && items.length > 0) {
+      return items[0].link;
+    } else {
+      throw new Error('No pricing page found');
+    }
+  } catch (error) {
+    console.error('Error finding pricing page:', error);
+    throw error;
+  }
+}
+
 async function extractPricingData(url: string): Promise<any> {
+  let browser;
   try {
     console.log('Extracting pricing info from:', url);
     
-    // Launch a headless browser
-    const browser = await puppeteer.launch();
+    const options = process.env.AWS_LAMBDA_FUNCTION_VERSION
+      ? {
+          args: chromium.args,
+          defaultViewport: chromium.defaultViewport,
+          executablePath: await chromium.executablePath,
+          headless: chromium.headless,
+          ignoreHTTPSErrors: true,
+        }
+      : {
+          args: [],
+          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+          headless: true,
+          ignoreHTTPSErrors: true,
+        };
+
+    browser = await puppeteer.launch(options);
+
     const page = await browser.newPage();
     
-    // Navigate to the URL and wait for the content to load
     await page.goto(url, { waitUntil: 'networkidle0' });
     
-    // Take a screenshot
     const screenshot = await page.screenshot({ encoding: 'base64' });
-    
-    await browser.close();
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -102,24 +100,24 @@ async function extractPricingData(url: string): Promise<any> {
     let pricingData;
     try {
       const content = completion.choices[0].message.content;
-      // Use regex to extract JSON content from markdown code block
       const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/);
       
       if (jsonMatch && jsonMatch[1]) {
-        // Parse the extracted JSON content
         pricingData = JSON.parse(jsonMatch[1]);
       } else {
-        // If no JSON block is found, return the raw content
         pricingData = { rawContent: content };
       }
     } catch (jsonError) {
       console.error('Error parsing JSON:', jsonError);
-      // If parsing fails, return the raw content
       pricingData = { rawContent: completion.choices[0].message.content };
     }
     return pricingData;
   } catch (error) {
     console.error('Error extracting pricing information:', error);
     throw error;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 }
