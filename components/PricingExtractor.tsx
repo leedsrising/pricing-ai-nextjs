@@ -2,6 +2,8 @@ import { useState } from 'react'
 import axios from 'axios'
 import styles from '../styles/PricingExtractor.module.css'
 
+const API_URL = 'https://pricingai-1.onrender.com'
+
 export default function PricingExtractor() {
   const [url, setUrl] = useState('')
   const [pricingData, setPricingData] = useState(null)
@@ -15,7 +17,7 @@ export default function PricingExtractor() {
     setPricingData(null)
 
     try {
-      const response = await axios.post('/api/getPricing', { url })
+      const response = await axios.post(`${API_URL}/api/getPricing`, { url })
       console.log('API Response:', response.data)
       setPricingData(response.data.pricingData)
     } catch (err) {
