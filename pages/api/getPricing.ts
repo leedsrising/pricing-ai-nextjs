@@ -1,15 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
-import OpenAI from 'openai';
-import chromium from 'chrome-aws-lambda';
-import puppeteer from 'puppeteer';
 
-// Make sure to set these environment variables in your .env.local file
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-const GOOGLE_CX = process.env.GOOGLE_CX;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default async function handler(
   req: NextApiRequest,
@@ -25,91 +17,12 @@ export default async function handler(
       return res.status(400).json({ error: 'URL is required' });
     }
 
-    const pricingUrl = await findPricingPage(url);
-    console.log('Found pricing URL:', pricingUrl);
+    // Forward the request to backend
+    const response = await axios.post(`${API_URL}/api/getPricing`, { url });
     
-    const pricingData = await extractPricingData(pricingUrl);
-    res.status(200).json({ pricingData });
+    res.status(200).json(response.data);
   } catch (error) {
     console.error('Error in getPricing:', error);
     res.status(500).json({ error: 'Error processing the request', details: error.message });
-  }
-}
-
-async function findPricingPage(baseUrl: string): Promise<string> {
-  const query = `${baseUrl} pricing`;
-  const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${encodeURIComponent(query)}`;
-
-  try {
-    const response = await axios.get(searchUrl);
-    const items = response.data.items;
-    if (items && items.length > 0) {
-      return items[0].link;
-    } else {
-      throw new Error('No pricing page found');
-    }
-  } catch (error) {
-    console.error('Error finding pricing page:', error);
-    throw error;
-  }
-}
-
-async function extractPricingData(url: string): Promise<any> {
-  let browser;
-  try {
-    if (process.env.NODE_ENV === 'production') {
-      browser = await chromium.puppeteer.launch({
-        args: chromium.args,
-        defaultViewport: chromium.defaultViewport,
-        executablePath: await chromium.executablePath,
-        headless: chromium.headless,
-      });
-    } else {
-      // Use local Puppeteer in development
-      browser = await puppeteer.launch();
-    }
-
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle0' });
-    
-    const screenshot = await page.screenshot({ encoding: 'base64' });
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Extract pricing information from this image. Format the response as a JSON object with 'features' as an array of feature names (including price), and 'tiers' as an array of tier objects. Each tier object should have a 'name' and values corresponding to each feature. If there are no tiers, create three usage levels (e.g., 'Low', 'Medium', 'High') and estimate prices for each level." },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${screenshot}` } }
-          ],
-        },
-      ],
-      max_tokens: 4096,
-    });
-
-    console.log('OpenAI API response received');
-    let pricingData;
-    try {
-      const content = completion.choices[0].message.content;
-      const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/);
-      
-      if (jsonMatch && jsonMatch[1]) {
-        pricingData = JSON.parse(jsonMatch[1]);
-      } else {
-        pricingData = { rawContent: content };
-      }
-    } catch (jsonError) {
-      console.error('Error parsing JSON:', jsonError);
-      pricingData = { rawContent: completion.choices[0].message.content };
-    }
-    return pricingData;
-  } catch (error) {
-    console.error('Error extracting pricing information:', error);
-    throw error;
-  } finally {
-    if (browser) {
-      await browser.close();
-    }
   }
 }
