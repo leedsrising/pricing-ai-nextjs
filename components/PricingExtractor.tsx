@@ -1,86 +1,93 @@
-import { useState } from 'react'
-import axios from 'axios'
-import styles from '../styles/PricingExtractor.module.css'
+import React, { useState } from 'react';
+import { TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, Container } from '@mui/material';
+import axios from 'axios';
 
-const API_URL = 'https://pricingai-1.onrender.com'
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+interface PricingData {
+  tiers: {
+    name: string;
+    price: string;
+    features: { [key: string]: string };
+  }[];
+  features: string[];
+}
 
 export default function PricingExtractor() {
-  const [url, setUrl] = useState('')
-  const [pricingData, setPricingData] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [pricingData, setPricingData] = useState<PricingData | null>(null);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setPricingData(null)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setPricingData(null);
 
     try {
       const response = await axios.post(`${API_URL}/api/getPricing`, { url })
       console.log('API Response:', response.data)
       setPricingData(response.data.pricingData)
     } catch (err) {
-      console.error('Error fetching pricing data:', err)
-      setError(`Error fetching pricing data: ${err.response?.data?.error || err.message}`)
+      setError('Failed to fetch pricing data. Please try again.');
+      console.error(err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
-  const renderPricingTable = () => {
-    if (!pricingData || !pricingData.features || !pricingData.tiers) return null;
-
-    return (
-      <table className={styles.pricingTable}>
-        <thead>
-          <tr>
-            <th>Feature</th>
-            {pricingData.tiers.map((tier, index) => (
-              <th key={index}>{tier.name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {pricingData.features.map((feature, featureIndex) => (
-            <tr key={featureIndex}>
-              <td>{feature}</td>
-              {pricingData.tiers.map((tier, tierIndex) => (
-                <td key={tierIndex}>{tier[feature] || '-'}</td>
-              ))}
-            </tr>
-          ))}
-          <tr>
-            <td><strong>Price</strong></td>
-            {pricingData.tiers.map((tier, index) => (
-              <td key={index}><strong>{tier.price}</strong></td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-    );
-  };
-
   return (
-    <div>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Enter URL"
-          required
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? 'Loading...' : 'Get Pricing'}
-        </button>
-      </form>
+    <Container maxWidth="lg">
+      <Container maxWidth="sm">
+        <Typography variant="h5" component="h2" align="center" gutterBottom>
+          AI Powered Price Assessment
+        </Typography>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '1rem' }}>
+          <TextField
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="company.com"
+            required
+            fullWidth
+          />
+          <Button type="submit" variant="contained" disabled={loading}>
+            Go
+          </Button>
+        </form>
+      </Container>
 
-      {error && <p className={styles.error}>{error}</p>}
+      {loading && <Typography align="center" style={{ marginTop: '1rem' }}>Loading...</Typography>}
+      {error && <Typography align="center" color="error" style={{ marginTop: '1rem' }}>{error}</Typography>}
 
-      {loading && <p>Loading pricing data...</p>}
-
-      {pricingData ? renderPricingTable() : <p>No pricing data found.</p>}
-    </div>
-  )
+      {pricingData && (
+        <TableContainer component={Paper} style={{ marginTop: '2rem' }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Feature</TableCell>
+                {pricingData.tiers.map((tier, index) => (
+                  <TableCell key={index}>{tier.name} - {tier.price}</TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {pricingData.features.map((feature, featureIndex) => (
+                <TableRow key={featureIndex}>
+                  <TableCell>{feature}</TableCell>
+                  {pricingData.tiers.map((tier, tierIndex) => (
+                    <TableCell key={tierIndex}>
+                      {tier.features && typeof tier.features === 'object' && feature in tier.features
+                        ? tier.features[feature as string]
+                        : '-'}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Container>
+  );
 }

@@ -7,7 +7,6 @@ import PricingExtractor from '../components/PricingExtractor'
 export default function Home() {
   return (
     <div>
-      <h1>Pricing AI</h1>
       <PricingExtractor />
     </div>
   )
