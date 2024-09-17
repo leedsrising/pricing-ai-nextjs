@@ -4,20 +4,17 @@ import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-interface PricingData {
-  tiers: {
-    name: string;
-    price: string;
-    features: { [key: string]: string };
-  }[];
-  features: string[];
+interface PricingTier {
+  name: string;
+  price: string;
+  features: { [key: string]: string };
 }
 
 export default function PricingExtractor() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [pricingData, setPricingData] = useState<PricingData | null>(null);
+  const [pricingData, setPricingData] = useState<PricingTier[] | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,9 +23,13 @@ export default function PricingExtractor() {
     setPricingData(null);
 
     try {
-      const response = await axios.post(`${API_URL}/api/getPricing`, { url })
-      console.log('API Response:', response.data)
-      setPricingData(response.data.pricingData)
+      const response = await axios.post(`${API_URL}/api/getPricing`, { url });
+      console.log('API Response:', response.data);
+      if (response.data && Array.isArray(response.data)) {
+        setPricingData(response.data);
+      } else {
+        throw new Error('Invalid format for pricing data');
+      }
     } catch (err) {
       setError('Failed to fetch pricing data. Please try again.');
       console.error(err);
@@ -37,8 +38,13 @@ export default function PricingExtractor() {
     }
   }
 
+  const allFeatures = pricingData ? Array.from(new Set(pricingData.flatMap(tier => Object.keys(tier.features)))) : [];
+
   return (
     <Container maxWidth="lg">
+      <Typography variant="h4" component="h1" gutterBottom>
+        Pricing AI
+      </Typography>
       <Container maxWidth="sm">
         <Typography variant="h5" component="h2" align="center" gutterBottom>
           AI Powered Price Assessment
@@ -66,20 +72,18 @@ export default function PricingExtractor() {
             <TableHead>
               <TableRow>
                 <TableCell>Feature</TableCell>
-                {pricingData.tiers.map((tier, index) => (
+                {pricingData.map((tier, index) => (
                   <TableCell key={index}>{tier.name} - {tier.price}</TableCell>
                 ))}
               </TableRow>
             </TableHead>
             <TableBody>
-              {pricingData.features.map((feature, featureIndex) => (
+              {allFeatures.map((feature, featureIndex) => (
                 <TableRow key={featureIndex}>
                   <TableCell>{feature}</TableCell>
-                  {pricingData.tiers.map((tier, tierIndex) => (
+                  {pricingData.map((tier, tierIndex) => (
                     <TableCell key={tierIndex}>
-                      {tier.features && typeof tier.features === 'object' && feature in tier.features
-                        ? tier.features[feature as string]
-                        : '-'}
+                      {tier.features[feature] || '-'}
                     </TableCell>
                   ))}
                 </TableRow>
